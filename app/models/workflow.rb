@@ -10,6 +10,7 @@ class Workflow < ApplicationRecord
       workflow.reducers_config = config[:reducers] || {}
       workflow.rules_config = config[:rules] || []
       workflow.updated_at = attributes[:updated_at] || Time.zone.now
+      workflow.webhooks = config[:webhooks] || []
       workflow.save!
     end
   end
