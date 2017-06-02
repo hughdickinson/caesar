@@ -13,10 +13,7 @@ module StreamEvents
 
       cache_linked_models!
 
-      if linked_workflow["nero_config"].keys.include? "webhooks"
-        wf = Workflow.find(linked_workflow["id"])
-        wf.webhooks.process "new_classification", [@data]
-      end
+      notify_webhooks(linked_workflow["id"], @data)
 
       stream.queue.add(ExtractWorker, classification.workflow_id, @data.to_unsafe_h)
     end
@@ -27,6 +24,17 @@ module StreamEvents
       linked_subjects.each do |linked_subject|
         Subject.update_cache(linked_subject)
       end
+    end
+
+    def notify_webhooks(id, data)
+      if subscribers?
+        wf = Workflow.find(id)
+        wf.webhooks.process :new_classification, [data]
+      end
+    end
+
+    def subscribers?
+      return linked_workflow["nero_config"].keys.include? "webhooks"
     end
 
     private
