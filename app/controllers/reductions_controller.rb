@@ -12,6 +12,10 @@ class ReductionsController < ApplicationController
                                                 subject_id: subject.id)
     reduction.update! reduction_params
 
+    CheckRulesWorker.perform_async(workflow.id, subject.id) if workflow.configured?
+    
+    workflow.webhooks.process(:updated_reduction, data) if workflow.subscribers?
+
     render json: reduction
   end
 
@@ -31,6 +35,10 @@ class ReductionsController < ApplicationController
 
   def workflow
     @workflow ||= Workflow.find(params[:workflow_id])
+  end
+
+  def data
+    params[:reduction][:data]
   end
 
   def reducer

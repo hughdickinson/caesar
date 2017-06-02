@@ -2,31 +2,21 @@ require 'spec_helper'
 
 describe StreamEvents::ClassificationEvent do
   let(:data) { { "foo" => "bar" } }
-
-  let(:sample_event){
-    described_class.new(nil, {
-      "data" => data,
-      "linked" => {}
-    })
-  }
+  let(:sample_event){ described_class.new(nil, { "data" => data, "linked" => {} }) }
 
   describe '#notify_webhooks' do
-    let(:sample_workflow){
-      double("Workflow")
-    }
+    let(:sample_workflow){ double("Workflow") }
+    let(:sample_engine){ double("Webhooks::Engine") }
 
-    let(:sample_engine){
-      double("Webhooks::Engine")
-    }
-
-    it 'does nothing when no webhooks are configured' do
-      allow(sample_event).to receive(:linked_workflow).and_return( "nero_config" => { } )
+    before do
       allow(Workflow).to receive(:find).and_return(sample_workflow)
       allow(sample_workflow).to receive(:webhooks).and_return(sample_engine)
       allow(sample_engine).to receive(:process).and_return(nil)
+    end
 
+    it 'does nothing when no webhooks are configured' do
+      allow(sample_event).to receive(:linked_workflow).and_return( "nero_config" => { } )
       expect(sample_engine).not_to receive(:process)
-
       sample_event.notify_webhooks(1234, data)
     end
 
@@ -34,12 +24,7 @@ describe StreamEvents::ClassificationEvent do
       allow(sample_event).to receive(:linked_workflow).and_return(
         "nero_config" => { "webhooks" => [ "anything at all" ] }
       )
-      allow(Workflow).to receive(:find).and_return(sample_workflow)
-      allow(sample_workflow).to receive(:webhooks).and_return(sample_engine)
-      allow(sample_engine).to receive(:process).and_return(nil)
-
       expect(sample_engine).to receive(:process).once
-
       sample_event.notify_webhooks(1234, data)
     end
   end
