@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20170531182444) do
+ActiveRecord::Schema.define(version: 20170601202247) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
@@ -72,7 +72,7 @@ ActiveRecord::Schema.define(version: 20170531182444) do
     t.jsonb    "extractors_config"
     t.jsonb    "reducers_config"
     t.jsonb    "rules_config"
-    t.jsonb    "webhooks"
+    t.jsonb    "webhooks_config"
   end
 
   add_foreign_key "actions", "subjects"

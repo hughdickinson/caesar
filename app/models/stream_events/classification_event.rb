@@ -13,6 +13,11 @@ module StreamEvents
 
       cache_linked_models!
 
+      if linked_workflow["nero_config"].keys.include? "webhooks"
+        wf = Workflow.find(linked_workflow["id"])
+        wf.webhooks.process "new_classification", [@data]
+      end
+
       stream.queue.add(ExtractWorker, classification.workflow_id, @data.to_unsafe_h)
     end
 
