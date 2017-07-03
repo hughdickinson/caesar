@@ -1,17 +1,20 @@
 require 'rails_helper'
 
 RSpec.describe ReductionsController, type: :controller do
+  before { fake_session admin: true }
+
+  let(:reducer_id) { 1 }
+  let(:reducer_config) { {"type" => "external"} }
+  let(:workflow) { Workflow.create!(reducers_config: {reducer_id => reducer_config}) }
+
   describe "GET #index" do
     it "returns http success" do
-      get :index, params: {workflow_id: 1, reducer_id: 1}
+      get :index, params: {workflow_id: workflow.id, reducer_id: reducer_id}
       expect(response).to have_http_status(:success)
     end
   end
 
   describe 'PUT #update' do
-    let(:reducer_id) { 1 }
-    let(:reducer_config) { {"type" => "external"} }
-    let(:workflow) { Workflow.create!(reducers_config: {reducer_id => reducer_config}) }
     let(:subject) { Subject.create! }
 
     it 'creates a new reduction' do
@@ -33,9 +36,9 @@ RSpec.describe ReductionsController, type: :controller do
 
     it 'updates an existing reduction' do
       Reduction.create!(workflow_id: workflow.id,
-                      subject_id: subject.id,
-                      reducer_id: reducer_id,
-                      data: {"foo" => 1})
+                        subject_id: subject.id,
+                        reducer_id: reducer_id,
+                        data: {"foo" => 1})
 
       put :update, as: :json,
           params: {workflow_id: workflow.id, reducer_id: reducer_id},
