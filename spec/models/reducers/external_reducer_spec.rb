@@ -13,7 +13,9 @@ describe Reducers::ExternalReducer do
   before do
     stub_request(:post, "http://example.org/post/extracts/here")
       .with(:body => extracts.to_json,
-           :headers => {'Accept'=>'*/*', 'Accept-Encoding'=>'gzip;q=1.0,deflate;q=0.6,identity;q=0.3', 'Content-Type'=>'application/json', 'Host'=>'example.org', 'User-Agent'=>'Ruby'})
+           :headers => {'Accept'=>'application/json',
+                        'Content-Type'=>'application/json',
+                        'Host'=>'example.org'})
       .to_return(:status => 200, :body => response_data.to_json, :headers => {})
   end
 
