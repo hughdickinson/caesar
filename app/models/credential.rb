@@ -12,6 +12,7 @@ class Credential < ApplicationRecord
   end
 
   def admin?
+    return true if Rails.env.development?
     jwt_payload.fetch("admin", false)
   rescue JWT::ExpiredSignature
     false
@@ -27,6 +28,18 @@ class Credential < ApplicationRecord
 
   def fetch_accessible_projects
     client.panoptes.paginate("/projects", current_user_roles: ['owner', 'collaborator'])
+  end
+
+  def accessible_workflow?(id)
+    response = client.panoptes.get("/workflows/#{id}")
+    workflow_hash = response["workflows"][0]
+    project_id = workflow_hash["links"]["project"].to_i
+
+    if project_ids.include?(project_id)
+      workflow_hash
+    end
+  rescue Panoptes::Client::ResourceNotFound
+    nil
   end
 
   private
