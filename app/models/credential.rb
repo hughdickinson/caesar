@@ -1,4 +1,10 @@
 class Credential < ApplicationRecord
+  Type = GraphQL::ObjectType.define do
+    name "Credential"
+    field :isLoggedIn, !types.Boolean, property: :logged_in?
+    field :isAdmin, !types.Boolean, property: :admin?
+  end
+
   before_create :set_expires_at
 
   def logged_in?
@@ -68,8 +74,9 @@ class Credential < ApplicationRecord
   end
 
   def set_expires_at
-    payload, _ = JWT.decode token, client.jwt_signing_public_key, algorithm: 'RS512'
-
-    self.expires_at ||= Time.at(payload.fetch("exp"))
+    unless expires_at.present?
+      payload, _ = JWT.decode token, client.jwt_signing_public_key, algorithm: 'RS512'
+      self.expires_at ||= Time.at(payload.fetch("exp"))
+    end
   end
 end

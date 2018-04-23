@@ -4,33 +4,73 @@ module Exporters
   class UnknownExporter < StandardError; end
 
   class CsvExporter
-    def dump(workflow_id)
-      path = get_path(workflow_id)
-      items = get_items(workflow_id)
+    attr_reader :workflow_id, :user_id, :subgroup
 
-      model_cols = get_model_cols
-      json_cols = get_unique_json_cols(workflow_id)
+    def initialize(params)
+      @workflow_id = params[:workflow_id]
+      @user_id = params[:user_id]
+      @subgroup = params[:subgroup]
+    end
+
+    def dump(path=nil)
+      if path.blank?
+        path = "tmp/#{get_topic.name.demodulize.underscore.pluralize}_#{workflow_id}.csv"
+      end
+
+      items = get_items
 
       CSV.open(path, "wb",
         :write_headers => true,
-        :headers => get_csv_headers(workflow_id)) do |csv|
-
+        :headers => get_csv_headers) do |csv|
         items.find_each do |item|
-          csv << extract_row(item, model_cols, json_cols)
+          csv << extract_row(item)
         end
-
       end
     end
 
-    def get_csv_headers(workflow_id)
-      get_model_cols + get_unique_json_cols(workflow_id).map{|col| "data.#{col}"}
+    def get_csv_headers
+      get_model_cols + get_unique_json_cols.map{|col| "data.#{col}"}
     end
 
-    def extract_row(source_row, model_cols, json_cols)
+    def extract_row(source_row)
+      model_cols = get_model_cols
+      json_cols = get_unique_json_cols
+
       string_source = source_row.attributes.stringify_keys
-      model_values = model_cols.map{|col| string_source[col] || ""}
-      json_values = json_cols.map{|col| source_row[:data][col] || ""}
+      model_values = model_cols.map{ |col| format_item(string_source[col]) }
+      json_values = json_cols.map{ |col| format_item(source_row[:data][col]) }
       model_values + json_values
     end
+
+    private
+
+    def format_item(item)
+      return "" unless item.present?
+
+      case item
+        when Integer, Float, String, TrueClass, FalseClass then item
+        when Array then item.to_json
+        when Hash then item.to_json
+        when DateTime, ActiveSupport::TimeWithZone then item
+      end
+    end
+
+    def get_items
+      find_hash = { :workflow_id => workflow_id }
+      find_hash[:user_id] = user_id unless user_id.blank?
+      find_hash[:subgroup] = subgroup unless subgroup.blank?
+      get_topic.where(find_hash)
+    end
+
+    def get_model_cols
+      @model_cols ||= get_topic.attribute_names - ["data"]
+    end
+
+    def get_unique_json_cols
+      @unique_json_cols ||= get_items
+                              .select("DISTINCT(jsonb_object_keys(data)) AS key")
+                              .map(&:key)
+    end
+
   end
 end

@@ -1,6 +1,7 @@
 require 'spec_helper'
 
 describe Extractors::ExternalExtractor do
+  let(:subject){ create :subject }
   let(:classification) do
     Classification.new(
       "id" => "12329",
@@ -8,7 +9,7 @@ describe Extractors::ExternalExtractor do
       "metadata" => {},
       "created_at" => "",
       "updated_at" => "",
-      "links" => {"project" => "1232", "workflow" => "1021", "subjects" => ["3999"], "user" => nil}
+      "links" => {"project" => "1232", "workflow" => "1021", "subjects" => [subject.id], "user" => nil}
     )
   end
 
@@ -24,7 +25,7 @@ describe Extractors::ExternalExtractor do
   end
 
   it 'posts the classification to a foreign API' do
-    extractor = described_class.new("ext", "url" => "http://example.org/post/classification/here")
+    extractor = described_class.new(key: "ext", config: {"url" => "http://example.org/post/classification/here"})
     extractor.process(classification)
 
     expect(a_request(:post, "example.org/post/classification/here")
@@ -33,7 +34,7 @@ describe Extractors::ExternalExtractor do
   end
 
   it 'stores the returned data as an extract' do
-    extractor = described_class.new("ext", "url" => "http://example.org/post/classification/here")
+    extractor = described_class.new(key: "ext", config: {"url" => "http://example.org/post/classification/here"})
     result = extractor.process(classification)
     expect(result).to eq(response_data)
   end
@@ -42,17 +43,16 @@ describe Extractors::ExternalExtractor do
     stub_request(:post, "http://example.org/post/classification/here").
       to_return(status: 204, body: "", headers: {})
 
-    extractor = described_class.new("ext", "url" => "http://example.org/post/classification/here")
+    extractor = described_class.new(key: "ext", config: {"url" => "http://example.org/post/classification/here"})
     result = extractor.process(classification)
-    expect(result).to eq({})
+    expect(result).to eq(Extractor::NoData)
   end
 
   it 'does not post if no url is configured' do
-    extractor = described_class.new("ext")
-    extractor.process(classification)
+    extractor = described_class.new(key: "ext")
 
-    expect(a_request(:post, "example.org/post/classification/here")
-             .with(body: classification.to_json))
-      .not_to have_been_made
+    expect do
+      extractor.process(classification)
+    end.to raise_error(StandardError)
   end
 end

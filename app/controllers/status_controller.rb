@@ -1,7 +1,9 @@
 class StatusController < ApplicationController
-  skip_before_action :authorize!
+  skip_before_action :authenticate!
 
   def show
-    render text: 'ok'
+    skip_authorization
+    @status = ApplicationStatus.new
+    respond_with @status
   end
 end

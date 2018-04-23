@@ -4,10 +4,7 @@ describe ClassificationPipeline do
       "id"=>"12281870",
       "created_at"=>"2016-05-16T09:34:23.682Z",
       "updated_at"=>"2016-05-16T09:34:23.750Z",
-      "user_ip"=>"1.2.3.4",
       "workflow_version"=>"332.94",
-      "gold_standard"=>nil,
-      "expert_classifier"=>nil,
       "annotations"=>[
         {
           "task"=>"T1",
@@ -33,7 +30,6 @@ describe ClassificationPipeline do
         ],
         "workflow_version"=>"332.94"
       },
-      "href"=>"/classifications/12281870",
       "links"=>{
         "project"=>"2439",
         "user"=>"1",
@@ -44,27 +40,35 @@ describe ClassificationPipeline do
     )
   end
 
-  let(:rule) do
-    {
-      if: [:gt, [:lookup, "s.LK", 0], [:const, 0]],
-      then: [{action: :retire_subject, reason: "consensus"}]
-    }
+  let(:reducers) do
+    [
+      build(:stats_reducer, key: 's'),
+      build(:stats_reducer, key: 'g', grouping: "s.LK")
+    ]
   end
 
   let(:workflow) do
-    create :workflow, project_id: 1,
-                      extractors_config: {"s" => {type: "survey", task_key: "T1"}},
-                      reducers_config: {"s" => {type: "stats"}},
-                      rules_config: [rule]
+    create(:workflow, project_id: 1,
+                      extractors: [build(:survey_extractor, key: 's', config: {"task_key" => "T1"})],
+                      reducers: reducers) do |w|
+      create :subject_rule, workflow: w, subject_rule_effects: [build(:subject_rule_effect, config: {reason: "consensus"})]
+    end
   end
 
   let(:subject) { Subject.create }
 
   let(:pipeline) do
-    workflow.classification_pipeline
+    Workflow.find(workflow.id).classification_pipeline
   end
 
-  let(:panoptes) { instance_double(Panoptes::Client, retire_subject: true, get_subject_classifications: {}) }
+  let(:panoptes) {
+    instance_double(
+      Panoptes::Client,
+      retire_subject: true,
+      get_subject_classifications: {},
+      get_user_classifications: {}
+    )
+  }
 
   before do
     allow(Effects).to receive(:panoptes).and_return(panoptes)
@@ -76,23 +80,125 @@ describe ClassificationPipeline do
   end
 
   it 'fetches classifications from panoptes when there are no other extracts' do
-    expect do
-      pipeline.process(classification)
-    end.to change(FetchClassificationsWorker.jobs, :size).by(1)
+    expect { pipeline.extract(classification) }.
+      to change(FetchClassificationsWorker.jobs, :size).by(1)
   end
 
-  it 'does not fetch classifications when extracts already present' do
-    Extract.create(
+  it 'does not fetch subject classifications when extracts already present' do
+    create(
+      :extract,
       classification_id: classification.id,
-      extractor_id: "zzz",
+      extractor_key: "zzz",
       subject_id: classification.subject_id,
       workflow_id: classification.workflow_id,
-      classification_at: DateTime.now,
       data: {"ZZZ" => 1}
     )
 
-    expect do
-      pipeline.process(classification)
-    end.not_to change(FetchClassificationsWorker.jobs, :size).from(0)
+    expect { pipeline.process(classification) }.
+      not_to change(FetchClassificationsWorker.jobs, :size)
+  end
+
+  it 'groups extracts before reduction' do
+    subject = create(:subject)
+    workflow = create(:workflow)
+
+    # "classroom 1" extracts
+    create :extract, extractor_key: 's', workflow_id: workflow.id, subject_id: subject.id, classification_id: 11111, data: { LN: 1 }
+    create :extract, extractor_key: 's', workflow_id: workflow.id, subject_id: subject.id, classification_id: 22222, data: { LN: 1 }
+    create :extract, extractor_key: 's', workflow_id: workflow.id, subject_id: subject.id, classification_id: 33333, data: { TGR: 1 }
+
+    create :extract, extractor_key: 'g', workflow_id: workflow.id, subject_id: subject.id, classification_id: 11111, data: { classroom: 1 }
+    create :extract, extractor_key: 'g', workflow_id: workflow.id, subject_id: subject.id, classification_id: 22222, data: { classroom: 1 }
+    create :extract, extractor_key: 'g', workflow_id: workflow.id, subject_id: subject.id, classification_id: 33333, data: { classroom: 1 }
+
+    # "classroom 2" extracts
+    create :extract, extractor_key: 's', workflow_id: workflow.id, subject_id: subject.id, classification_id: 44444, data: { LN: 1 }
+    create :extract, extractor_key: 's', workflow_id: workflow.id, subject_id: subject.id, classification_id: 55555, data: { LN: 1, BR: 1 }
+
+    create :extract, extractor_key: 'g', workflow_id: workflow.id, subject_id: subject.id, classification_id: 44444, data: { classroom: 2 }
+    create :extract, extractor_key: 'g', workflow_id: workflow.id, subject_id: subject.id, classification_id: 55555, data: { classroom: 2 }
+
+    # build a simplified pipeline to reduce these extracts
+    reducer = build(:stats_reducer, key: 's', grouping: "g.classroom", workflow_id: workflow.id)
+    pipeline = described_class.new(nil, [reducer], nil, nil)
+    pipeline.reduce(workflow.id, subject.id, nil)
+
+    expect(SubjectReduction.count).to eq(2)
+    expect(SubjectReduction.where(subgroup: 1).first.data).to include({"LN" => 2, "TGR" => 1})
+    expect(SubjectReduction.where(subgroup: 2).first.data).to include({"LN" => 2, "BR" => 1})
+  end
+
+  it 'reduces by user instead of subject if we tell it to' do
+    workflow = create(:workflow)
+    subject = create(:subject)
+    other_subject = create(:subject)
+
+    create :extract, extractor_key: 's', workflow_id: workflow.id, user_id: 1234, subject_id: subject.id, classification_id: 11111, data: { LN: 1 }
+    create :extract, extractor_key: 's', workflow_id: workflow.id, user_id: 1234, subject_id: other_subject.id, classification_id: 22222, data: { LN: 1 }
+    create :extract, extractor_key: 's', workflow_id: workflow.id, user_id: 1235, subject_id: subject.id, classification_id: 33333, data: { TGR: 1 }
+    create :extract, extractor_key: 's', workflow_id: workflow.id, user_id: 1236, subject_id: subject.id, classification_id: 44444, data: { BR: 1 }
+
+    reducer = build(:stats_reducer, key: 's', topic: Reducer.topics[:reduce_by_user], workflow_id: workflow.id)
+
+    pipeline = described_class.new(nil, [reducer], nil, nil)
+    pipeline.reduce(workflow.id, nil, 1234)
+
+    expect(UserReduction.count).to eq(1)
+    expect(UserReduction.first.user_id).to eq(1234)
+    expect(UserReduction.first.data).to eq({"LN" => 2})
+  end
+
+  it 'calls both user rules and subject rules' do
+    user_rule = instance_double( UserRule, process: true)
+    subject_rule = instance_double( SubjectRule, process: true)
+
+    workflow = create :workflow
+    subject = create :subject
+    user_id = 1234
+
+    pipeline = described_class.new(nil, nil, [subject_rule], [user_rule])
+    pipeline.check_rules(workflow.id, subject.id, user_id)
+
+    expect(user_rule).to have_received(:process).with(user_id, any_args).once
+    expect(subject_rule).to have_received(:process).with(subject.id, any_args).once
+  end
+
+  it 'stops at first matching subject rule' do
+    subject_rule1 = instance_double(SubjectRule, process: true)
+    subject_rule2 = instance_double(SubjectRule, process: true)
+
+    workflow = create :workflow
+    subject = create :subject
+
+    pipeline = described_class.new(nil, nil, [subject_rule1, subject_rule2], [], :first_matching_rule)
+    pipeline.check_rules(workflow.id, subject.id, nil)
+
+    expect(subject_rule1).to have_received(:process).with(subject.id, any_args).once
+    expect(subject_rule2).not_to have_received(:process)
+  end
+
+  it 'stops at first matching user rule' do
+    user_rule1 = instance_double(UserRule, process: true)
+    user_rule2 = instance_double(UserRule, process: true)
+
+    workflow = create :workflow
+    subject = create :subject
+    user_id = 1234
+
+    pipeline = described_class.new(nil, nil, [], [user_rule1, user_rule2], :first_matching_rule)
+    pipeline.check_rules(workflow.id, subject.id, user_id)
+
+    expect(user_rule1).to have_received(:process).with(user_id, any_args).once
+    expect(user_rule2).not_to have_received(:process)
+  end
+
+  describe 'running/online aggregation mode' do
+    xit 'selects the proper extracts for processing' do
+      raise NotImplementedError
+    end
+
+    xit 'detects synchronization problems' do
+      raise NotImplementedError
+    end
   end
 end

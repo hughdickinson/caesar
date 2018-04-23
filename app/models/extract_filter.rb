@@ -1,43 +1,29 @@
 class ExtractFilter
-  class ExtractsForClassification
-    attr_reader :extracts
+  include ActiveModel::Validations
 
-    def initialize(extracts)
-      @extracts = extracts
-    end
+  REPEATED_CLASSIFICATIONS = ["keep_first", "keep_last", "keep_all"]
+  EMPTY_EXTRACTS = ["keep_all", "ignore_empty"]
 
-    def select(&block)
-      self.class.new(extracts.select(&block))
-    end
+  validates :repeated_classifications, inclusion: {in: REPEATED_CLASSIFICATIONS}
+  validates :empty_extracts, inclusion: {in: EMPTY_EXTRACTS}
+  validates :from, numericality: true
+  validates :to, numericality: true
 
-    def classification_id
-      extracts.first.classification_id
-    end
+  attr_reader :filters
 
-    def classification_at
-      extracts.first.classification_at
-    end
-
-    def user_id
-      extracts.first.user_id
-    end
-  end
-
-  attr_reader :extracts, :filters
-
-  def initialize(extracts, filters)
-    @extracts = extracts.group_by(&:classification_id).map { |_, group| ExtractsForClassification.new(group) }
+  def initialize(filters)
     @filters = filters.with_indifferent_access
   end
 
-  def to_a
-    filter_by_extractor_ids(filter_by_subrange(filter_by_repeatedness(extracts))).flat_map(&:extracts)
+  def filter(extracts)
+    extracts = ExtractsForClassification.from(extracts)
+    filter_by_subrange(filter_by_emptyness(filter_by_extractor_keys(filter_by_repeatedness(extracts)))).flat_map(&:extracts)
   end
 
   private
 
   def filter_by_repeatedness(extracts)
-    case @filters[:repeated_classifications] || "keep_first"
+    case repeated_classifications
     when "keep_all"
       extracts
     when "keep_first"
@@ -48,38 +34,70 @@ class ExtractFilter
   end
 
   def filter_by_subrange(extracts)
-    extracts.sort_by(&:classification_at)[subrange]
+    extracts.select do |extract_group|
+      extract_group.extracts.length > 0
+    end.sort_by(&:classification_at)[subrange]
   end
 
-  def filter_by_extractor_ids(extracts)
-    return extracts if extractor_ids.blank?
+  def filter_by_extractor_keys(extracts)
+    return extracts if extractor_keys.blank?
 
     extracts.map do |group|
       group.select do |extract|
-        extractor_ids.include?(extract.extractor_id)
+        extractor_keys.include?(extract.extractor_key)
+      end
+    end
+  end
+
+  def filter_by_emptyness(extracts)
+    case empty_extracts
+    when "keep_all"
+      extracts
+    when "ignore_empty"
+      extracts.map do |extract_group|
+        extract_group.select { |extract| extract.data.present? }
       end
     end
   end
 
   def keep_first_classification(extracts)
-    user_ids ||= Set.new
+    subjects ||= Hash.new
 
     extracts.select do |extracts_for_classification|
+      subject_id = extracts_for_classification.subject_id
+      user_id = extracts_for_classification.user_id
+
+      subjects[subject_id] = Set.new unless subjects.has_key? subject_id
+      id_list = subjects[subject_id]
+
       next true unless extracts_for_classification.user_id
-      next false if user_ids.include?(extracts_for_classification.user_id)
-      user_ids << extracts_for_classification.user_id
+      next false if id_list.include?(user_id)
+      id_list << user_id
       true
     end.to_a
   end
 
-  def subrange
-    from = filters["from"] || 0
-    to   = filters["to"] || -1
+  def from
+    (filters["from"] || 0).to_i
+  end
 
+  def to
+    (filters["to"] || -1).to_i
+  end
+
+  def subrange
     Range.new(from, to)
   end
 
-  def extractor_ids
-    filters["extractor_ids"] || []
+  def extractor_keys
+    Array.wrap(filters["extractor_keys"] || [])
+  end
+
+  def repeated_classifications
+    filters["repeated_classifications"] || "keep_first"
+  end
+
+  def empty_extracts
+    filters["empty_extracts"] || "keep_all"
   end
 end

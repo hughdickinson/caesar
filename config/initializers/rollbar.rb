@@ -5,7 +5,7 @@ Rollbar.configure do |config|
   config.access_token = ENV['ROLLBAR_ACCESS_TOKEN']
 
   # Here we'll disable in 'test':
-  if Rails.env.test?
+  if Rails.env.development? || Rails.env.test?
     config.enabled = false
   end
 
@@ -28,6 +28,14 @@ Rollbar.configure do |config|
   # Valid levels: 'critical', 'error', 'warning', 'info', 'debug', 'ignore'
   # 'ignore' will cause the exception to not be reported at all.
   # config.exception_level_filters.merge!('MyCriticalException' => 'critical')
+  config.exception_level_filters.merge!('ActionController::RoutingError' => 'ignore',
+                                        'Stoplight::Error::RedLight' => 'ignore',
+                                        'Extractors::ExternalExtractor::ExternalExtractorFailed' => 'ignore',
+                                        'RestClient::GatewayTimeout' => 'ignore',
+                                        'RestClient::BadGateway' => 'ignore',
+                                        'Extractors::PluckFieldExtractor::FailedMatch' => 'ignore',
+                                        'ClassificationPipeline::ReductionConflict' => 'ignore',
+                                        'Reducers::ExternalReducer::ExternalReducerFailed' => 'ignore')
   #
   # You can also specify a callable, which will be called with the exception instance.
   # config.exception_level_filters.merge!('MyCriticalException' => lambda { |e| 'critical' })

@@ -42,12 +42,15 @@ describe Conditions::FromConfig do
     ])
 
     binding = RuleBindings.new(
-      [
-        Reduction.new(reducer_id: 'desert', data: {:snek => 1, :sand_cat => 1})
-      ]
+      [SubjectReduction.new(reducer_key: 'desert', data: {:snek => 1, :sand_cat => 1})],
+      build_stubbed(:subject)
     )
 
     expect(condition.apply(binding)).to be(false)
   end
 
+  it 'builds text transformations' do
+    condition = described_class.build([:upcase, [:const, "foo"]])
+    expect(condition.apply({})).to eq("FOO")
+  end
 end

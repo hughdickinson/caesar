@@ -4,15 +4,17 @@ describe StreamEvents::ClassificationEvent do
   let(:queue) { double(add: nil) }
   let(:stream) { double(KinesisStream, queue: queue) }
   let(:workflow) { create :workflow }
+
   let(:hash) do
     {
-      "data" => ActionController::Parameters.new("links" => {"workflow" => workflow.id}),
-      "linked" => {"subjects" => {}}
+      "data" => ActionController::Parameters.new(
+        build(:classification_event, workflow: workflow, subject: double(id: 123))
+      ),
+      "linked" => {"subjects" => [{"id" => "123"}]}
     }
   end
 
   it 'processes an event' do
-    workflow.update! extractors_config: {"ext" => {type: "external"}}
     described_class.new(stream, hash).process
     expect(queue).to have_received(:add).once
   end
@@ -22,20 +24,4 @@ describe StreamEvents::ClassificationEvent do
     described_class.new(stream, hash).process
     expect(queue).not_to have_received(:add)
   end
-
-  it 'does not process when workflow has nothing configured' do
-    workflow.update! extractors_config: nil, reducers_config: nil, rules_config: nil
-    described_class.new(stream, hash).process
-    expect(queue).not_to have_received(:add)
-  end
-
-  let(:data) { { "foo" => "bar" } }
-
-  let(:sample_event){
-    described_class.new(nil, {
-      "data" => data,
-      "linked" => {}
-    })
-  }
-
 end

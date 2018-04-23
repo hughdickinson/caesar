@@ -1,39 +1,48 @@
 class ExtractsController < ApplicationController
-
   def index
-    extracts = Extract.where(workflow_id: params[:workflow_id], subject_id: params[:subject_id])
+    extracts = policy_scope(Extract).where(workflow_id: params[:workflow_id], subject_id: params[:subject_id])
     render json: extracts
   end
 
   def update
     extract = Extract.find_or_initialize_by(workflow_id: workflow.id,
-                                            extractor_id: extractor.id,
-                                            subject_id: subject.id)
-    extract.update! extract_params
+                                            extractor_key: extractor.key,
+                                            classification_id: classification_id)
+    authorize extract
 
-    ReduceWorker.perform_async(workflow.id, subject.id) if workflow.configured?
+    Workflow.transaction do
+      extract.subject_reduction.update_all expired: true
+      extract.user_reduction.update_all expired: true
+      extract.update! extract_params
+    end
+
+    ReduceWorker.perform_async(workflow.id, subject.id, user_id) if workflow.configured?
 
     workflow.webhooks.process(:updated_extraction, data) if workflow.subscribers?
-    
+
     render json: extract
   end
 
   private
 
-  def authorized?
-    workflow.present?
-  end
-
   def workflow
-    @workflow ||= Workflow.accessible_by(credential).find(params[:workflow_id])
+    @workflow ||= policy_scope(Workflow).find(params[:workflow_id])
   end
 
   def extractor
-    workflow.extractors[params[:extractor_id]]
+    workflow.extractors.find_by(key: params[:extractor_key])
   end
 
   def subject
     @subject ||= Subject.find(params[:extract][:subject_id])
+  end
+
+  def classification_id
+    params[:extract][:classification_id]
+  end
+
+  def user_id
+    params[:extract][:user_id]
   end
 
   def data
@@ -41,7 +50,7 @@ class ExtractsController < ApplicationController
   end
 
   def extract_params
-    params.require(:extract).permit(:classification_id, :classification_at, :user_id, :data).tap do |whitelisted|
+    params.require(:extract).permit(:classification_id, :classification_at, :user_id, :data, :subject_id).tap do |whitelisted|
       whitelisted[:data] = params[:extract][:data].permit!
     end
   end

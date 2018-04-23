@@ -1,14 +1,26 @@
 class RuleBindings
   class OverlappingKeys < StandardError; end
 
-  def initialize(reductions)
-    @reductions = reductions.index_by(&:reducer_id)
+  class SubjectBindings
+    def initialize(subject)
+      @subject = subject
+    end
+
+    def data
+      return {} unless @subject
+      @data ||= @subject.metadata.merge("zooniverse_subject_id" => @subject.id)
+    end
+  end
+
+  def initialize(reductions, subject)
+    @reductions = reductions.index_by(&:reducer_key)
+    @reductions.merge!("subject" => SubjectBindings.new(subject)) unless subject.blank?
   end
 
   def fetch(key, defaultVal=nil)
-    reducer_id, data_key = key.split(".")
-    return @reductions.fetch(reducer_id) if data_key.nil?
-    @reductions.fetch(reducer_id).data.fetch(data_key, defaultVal)
+    reducer_key, data_key = key.split(".")
+    return @reductions.fetch(reducer_key) if data_key.nil?
+    @reductions.fetch(reducer_key).data.fetch(data_key, defaultVal)
   end
 
   def keys

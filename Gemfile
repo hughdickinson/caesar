@@ -7,7 +7,7 @@ end
 
 
 # Bundle edge Rails instead: gem 'rails', github: 'rails/rails'
-gem 'rails', '~> 5.1.1'
+gem 'rails', '~> 5.1.4'
 # Use postgresql as the database for Active Record
 gem 'pg', '~> 0.18'
 # Use Puma as the app server
@@ -30,37 +30,47 @@ gem 'uglifier', '>= 1.3.0'
 gem 'sidekiq'
 gem 'sidekiq-congestion', '~> 0.1.0'
 gem 'sidekiq-unique-jobs'
+gem 'sidekiq-logstash'
 gem 'flipper'
 gem 'flipper-active_record'
 gem 'flipper-ui'
-gem 'panoptes-client', '~> 0.3.1'
+gem 'panoptes-client', '~> 0.3.6'
 gem 'newrelic_rpm'
 gem 'lograge'
+gem 'logstash-event'
 gem 'rollbar'
 gem 'omniauth'
 gem 'omniauth-zooniverse'
 gem 'responders'
 gem 'listen', '>= 3.0.5', '< 3.2'
 gem 'rest-client', '> 2.0'
+gem 'aws-sdk-s3'
+gem 'jsonpath'
+gem 'simple_form'
+gem 'pundit', "~> 1.1.0"
+gem 'graphql'
+gem 'graphiql-rails'
+gem 'stoplight'
+gem 'dotenv-rails'
+gem 'ranked-model'
+gem 'deferred_associations'
 
 # Use Capistrano for deployment
 # gem 'capistrano-rails', group: :development
 
 # Use Rack CORS for handling Cross-Origin Resource Sharing (CORS), making cross-origin AJAX possible
-# gem 'rack-cors'
+gem 'rack-cors'
 
 group :development, :test do
   # Call 'byebug' anywhere in the code to stop execution and get a debugger console
   gem 'byebug', platform: [:mri, :mingw, :x64_mingw]
   gem 'capybara', '~> 2.13'
   gem 'selenium-webdriver'
-  gem 'rspec-rails', '~> 3.5'
+  gem 'rspec-rails', '~> 3.7'
   gem 'pry-rails'
-  gem 'dotenv-rails'
   gem 'webmock'
   gem 'spring-commands-rspec'
   gem 'rubocop'
-  gem 'mutant-rspec'
   gem 'factory_girl_rails'
 end
 

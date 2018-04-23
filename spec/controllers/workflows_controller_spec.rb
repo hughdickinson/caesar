@@ -56,13 +56,19 @@ RSpec.describe WorkflowsController, type: :controller do
   describe 'POST #create' do
     it 'creates a workflow' do
       workflow_hash = {"id" => '123', "links" => {"project" => "10"}}
+      allow(@credential).to receive(:project_ids)
+                              .and_return([10])
       allow(@credential).to receive(:accessible_workflow?)
                               .with(workflow_hash["id"])
                               .and_return(workflow_hash)
 
-      post :create, params: {workflow: {id: workflow_hash["id"], project_id: workflow_hash["links"]["project_id"]}}
+      post :create, params: {workflow: {id: workflow_hash["id"],
+                                        project_id: workflow_hash["links"]["project_id"],
+                                        public_reductions: true}}
+
       expect(response).to redirect_to(action: :show, id: workflow_hash["id"])
       expect(Workflow.find(workflow_hash["id"])).to be_present
+      expect(Workflow.find(workflow_hash["id"]).public_reductions).to be_truthy
     end
 
     it 'returns 403 for a project the user does not have access to' do
@@ -83,12 +89,12 @@ RSpec.describe WorkflowsController, type: :controller do
           params: {id: workflow.id},
           body: {
             workflow: {
-              extractors_config: {"type" => "external"}
+              extractors_config: {"ext" => {"type" => "external"}}
             }
           }.to_json
 
       expect(response).to have_http_status(:success)
-      expect(workflow.reload.extractors_config).to eq("type" => "external")
+      expect(workflow.reload.extractors[0]).to be_present
     end
   end
 end

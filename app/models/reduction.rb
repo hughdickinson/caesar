@@ -1,2 +1,0 @@
-class Reduction < ApplicationRecord
-end

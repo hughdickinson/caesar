@@ -1,0 +1,57 @@
+<h2>Subject Rules</h2>
+<!-- <button type="button" name="button">Add New</button> -->
+<table class="table table-hover table table-sm">
+  <thead>
+    <thead class="thead-inverse">
+      <tr>
+        <th>If</th>
+        <th>Then</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% for rule in @workflow.subject_rules %>
+        <tr>
+          <td><%= render_condition rule.condition %></td>
+          <td>
+            <ul>
+              <% rule.subject_rule_effects.each do |rule_effect| %>
+                <li><%= render partial: 'effect', locals: {effect: rule_effect.effect} %></li>
+              <% end %>
+            </ul>
+          </td>
+          <td><!-- <button type="button" name="button">Edit</button>
+                   <button type="button" name="button">Delete</button> --></td>
+        </tr>
+      <% end %>
+    </tbody>
+</table>
+
+<h2>User Rules</h2>
+<!-- <button type="button" name="button">Add New</button> -->
+<table class="table table-hover table table-sm">
+  <thead>
+    <thead class="thead-inverse">
+      <tr>
+        <th>If</th>
+        <th>Then</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% for rule in @workflow.user_rules %>
+        <tr>
+          <td><%= render_condition rule.condition %></td>
+          <td>
+            <ul>
+              <% rule.user_rule_effects.each do |rule_effect| %>
+                <li><%= render partial: 'effect', locals: {effect: rule_effect.effect} %></li>
+              <% end %>
+            </ul>
+          </td>
+          <td><!-- <button type="button" name="button">Edit</button>
+                   <button type="button" name="button">Delete</button> --></td>
+        </tr>
+      <% end %>
+    </tbody>
+</table>
